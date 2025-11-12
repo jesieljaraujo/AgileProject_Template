@@ -1,0 +1,851 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Agile Project Board: Scrum + Kanban</title>
+<link rel="icon" href="data:;base64,iVBORw0KGgo=">
+<style>
+/* Modern visual style inspired from uploaded example + UX improvements */
+:root{
+  --bg1:#667eea;
+  --bg2:#764ba2;
+  --card:#ffffff;
+  --muted:#6b7280;
+  --accent:#007bff;
+  --success:#4ca563;
+  --danger:#ff6b6b;
+  --glass: rgba(255,255,255,0.12);
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0;font-family:Inter, "Segoe UI", system-ui, Roboto, "Helvetica Neue", Arial;}
+body{
+  background: linear-gradient(135deg,var(--bg1) 0%, var(--bg2) 100%);
+  padding:28px;
+  color:#0f172a;
+  -webkit-font-smoothing:antialiased;
+  -moz-osx-font-smoothing:grayscale;
+}
+.container{max-width:1200px;margin:0 auto;}
+.header{
+  display:flex;gap:16px;align-items:center;justify-content:space-between;color:white;margin-bottom:18px;
+}
+.title{font-size:1.6rem;font-weight:700;text-shadow:0 4px 12px rgba(0,0,0,0.25);}
+.controls{display:flex;gap:10px;align-items:center;}
+.tab-btn{background:var(--glass);color:white;border:0;padding:10px 14px;border-radius:10px;cursor:pointer;font-weight:600;backdrop-filter: blur(6px);}
+.tab-btn.active{background:white;color:var(--bg1);box-shadow:0 8px 24px rgba(0,0,0,0.18);}
+.content{background:var(--card);border-radius:14px;padding:20px;box-shadow:0 12px 40px rgba(2,6,23,0.2);}
+.top-actions{display:flex;gap:10px;align-items:center;}
+.add-btn{background:linear-gradient(90deg,var(--bg1),var(--bg2));color:white;padding:10px 14px;border-radius:10px;border:0;cursor:pointer;font-weight:700;}
+.small-btn{background:#f1f5f9;border:0;padding:8px 10px;border-radius:8px;cursor:pointer;font-weight:600;}
+.row{display:flex;gap:16px;align-items:center;}
+.sprint-board{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;margin-top:16px;}
+.column{background:#f8fafc;border-radius:10px;padding:12px;min-height:160px;display:flex;flex-direction:column;transition:background 0.3s}
+
+/* WIP Alert Style */
+.column.wip-alert {
+    background-color: #ffe0e0; /* Fundo de aviso */
+    border: 2px solid var(--danger);
+}
+.column.wip-alert h3 {
+    color: var(--danger) !important;
+}
+
+.column h3{margin:0 0 8px 0;color:var(--bg1);display:flex;justify-content:space-between;align-items:center;font-size:0.95rem}
+.card{background:white;border-radius:8px;padding:10px;margin-bottom:10px;box-shadow:0 6px 16px rgba(2,6,23,0.06);cursor:grab;border-left:6px solid var(--bg1);display:flex;flex-direction:column;gap:6px}
+.card[draggable="true"]{user-select:none}
+.card .meta{font-size:12px;color:var(--muted);display:flex;gap:8px;align-items:center}
+.priority{display:inline-block;padding:4px 8px;border-radius:999px;font-weight:700;font-size:11px}
+.p-high{background:var(--danger);color:white}
+.p-med{background:#ffd93d;color:#111}
+.p-low{background:var(--success);color:white}
+.card .actions{display:flex;gap:8px;justify-content:flex-end}
+.icon-btn{background:transparent;border:0;cursor:pointer;font-size:14px;padding:6px;border-radius:6px}
+.icon-btn:hover{background:rgba(0,0,0,0.04)}
+.backlog-list{margin-top:8px;display:flex;flex-direction:column;gap:8px}
+.backlog-item{background:#fff;padding:10px;border-radius:8px;box-shadow:0 6px 14px rgba(2,6,23,0.04);border-left:6px solid #764ba2}
+.footer{margin-top:18px;font-size:13px;color:var(--muted);display:flex;justify-content:space-between;align-items:center}
+.hidden{display:none}
+
+/* Modal aprimorado com animação e correção de visibilidade */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(2, 6, 23, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 50;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s ease-in-out;
+}
+
+.modal-backdrop.visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.modal-backdrop.hidden {
+  display: none !important;
+}
+
+.modal {
+  background: white;
+  border-radius: 12px;
+  padding: 18px;
+  width: 100%;
+  max-width: 520px;
+  box-shadow: 0 18px 50px rgba(2, 6, 23, 0.4);
+  transform: scale(0.95);
+  transition: transform 0.25s ease-in-out;
+}
+
+.modal-backdrop.visible .modal {
+  transform: scale(1);
+}
+
+/* DoD Checklist */
+.dod-section {
+    margin-top: 15px;
+    padding-top: 10px;
+    border-top: 1px solid #eee;
+}
+.dod-section label {
+    display: block;
+    font-size: 13px;
+    margin-bottom: 5px;
+    color: var(--muted);
+}
+
+/* Pomodoro timer style */
+#pomodoroBtn.active {
+    background-color: var(--danger);
+    color: white;
+}
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="header" role="banner">
+    <div>
+      <div class="title">🚀 Agile Project Board</div>
+      <div style="font-size:13px;color:rgba(255,255,255,0.9);margin-top:6px">Foco (WIP/Pomodoro) • Qualidade (DoD) • Métricas (Velocity)</div>
+    </div>
+    <div class="controls">
+      <button id="pomodoroBtn" class="tab-btn" onclick="togglePomodoro()">🍅 Pomodoro (25m)</button>
+      
+      <button id="tab-board" class="tab-btn active">Sprint Board</button>
+      <button id="tab-backlog" class="tab-btn">Product Backlog</button>
+      <button id="tab-metrics" class="tab-btn">Métricas</button>
+      <div style="width:8px"></div>
+      <div class="top-actions"> <!--Botoes para exp e imp-->
+        <button id="addTaskBtn" class="add-btn">➕ Nova Tarefa</button>
+        <button id="exportBtn" class="small-btn" title="Exportar para Excel">⬇️ Exportar</button>
+        <button id="importBtn" class="small-btn" title="Importar do Excel">⬆️ Importar </button>
+              <input id="importFile" type="file" accept=".xlsx,.xls,.csv" style="display:none"/>
+        <button id="clearBtn" class="small-btn" title="Limpar armazenamento">🗑️ Limpar</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="content" role="main">
+    <div id="boardSection" class="section">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <div style="font-weight:700;color:var(--bg1)">Sprint #1</div>
+        <div style="font-size:13px;color:var(--muted)">
+          <span id="sprint-days-remaining">14</span> dias restantes • 
+          <span id="count-tasks">0</span> tarefas
+        </div>
+      </div>
+
+      <div class="sprint-board" id="board">
+        <div class="column" data-column="To Do">
+          <h3>📋 To Do</h3>
+          <div class="list" id="col-todo" aria-live="polite"></div>
+        </div>
+        <div class="column" data-column="In Progress">
+          <h3>⚙️ In Progress <small id="wipLimitDisplay" style="font-weight:600;color:var(--muted)">(WIP: 0/3)</small></h3>
+          <div class="list" id="col-progress"></div>
+        </div>
+        <div class="column" data-column="Review">
+          <h3>🔍 Review</h3>
+          <div class="list" id="col-review"></div>
+        </div>
+        <div class="column" data-column="Done">
+          <h3>✅ Done</h3>
+          <div class="list" id="col-done"></div>
+        </div>
+      </div>
+    </div>
+
+    <div id="backlogSection" class="section hidden">
+      <h3 style="color:var(--bg1)">Product Backlog</h3>
+      <div class="backlog-list" id="backlogList"></div>
+      <div style="margin-top:10px">
+        <button id="addBacklogBtn" class="add-btn">➕ Adicionar User Story</button>
+      </div>
+    </div>
+
+    <div id="metricsSection" class="section hidden">
+      <h3 style="color:var(--bg1)">Métricas do Sprint</h3>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-top:12px">
+        <div style="background:linear-gradient(135deg,#6bcf7f,#4ca563);padding:14px;border-radius:10px;color:white">
+          <div style="font-weight:700">Velocity (Concluído)</div>
+          <div style="font-size:20px" id="metric-velocity">0</div>
+          <div style="font-size:12px;opacity:0.9">pontos</div>
+        </div>
+        <div style="background:linear-gradient(135deg,#667eea,#764ba2);padding:14px;border-radius:10px;color:white">
+          <div style="font-weight:700">Sprint Progress (Pontos)</div>
+          <div style="font-size:20px" id="metric-progress">0%</div>
+          <div style="font-size:12px;opacity:0.9">completo</div>
+        </div>
+        <div style="background:linear-gradient(135deg,#ff8066,#ff6b6b);padding:14px;border-radius:10px;color:white">
+          <div style="font-weight:700">Tempo Gasto Total</div>
+          <div style="font-size:20px" id="metric-time-spent">0h</div>
+          <div style="font-size:12px;opacity:0.9">para ${Math.max(1, Math.ceil(document.getElementById('sprint-days-remaining').textContent))} dias</div>
+        </div>
+      </div>
+      <div style="margin-top:20px; text-align:center">
+        <button id="replanSprintBtn" class="add-btn">🔄 Replanejar Sprint (Mover Incompletos)</button>
+        <p style="font-size:12px; color:var(--muted); margin-top:5px;">Move tarefas não concluídas para o Backlog e reinicia o contador de dias.</p>
+      </div>
+    </div>
+
+    <div class="footer">
+      <div>Design e template Jesiel Araújo • Foco em edição rápida</div>
+      <div style="font-size:12px;color:var(--muted)">Salvar local: localStorage • Export/Import: Excel</div>
+    </div>
+  </div>
+</div>
+
+<div id="modalBackdrop" class="modal-backdrop hidden" aria-hidden="true">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+    <div style="font-weight:700" id="modalTitle">Nova Tarefa</div>
+    <div style="margin-top:8px;font-size:13px;color:var(--muted)" id="modalSub">Preencha os campos</div>
+    <div style="margin-top:12px">
+      <div class="form-row">
+        <input id="taskTitle" type="text" placeholder="Título da tarefa (user story)" />
+      </div>
+      <div class="form-row">
+        <select id="taskPriority">
+          <option value="High">Urgent - Important </option>
+          <option value="Medium" selected>Urgent - Not important </option>
+          <option value="Medium">Important - Not urgent </option>
+          <option value="Low">Not important - Not urgent </option>
+        </select>
+        <input id="taskPoints" type="number" placeholder="Pontos (ex: 3)" min="1" />
+      </div>
+      <div class="form-row">
+        <input id="taskOwner" type="text" placeholder="Responsável (ex: Maria)" />
+        <select id="taskColumn">
+          <option>To Do</option>
+          <option>In Progress</option>
+          <option>Review</option>
+          <option>Done</option>
+        </select>
+      </div>
+      <div class="form-row">
+        <input id="taskTimeSpent" type="number" placeholder="Tempo Gasto (h)" min="0" style="flex:0.5;"/>
+        <span style="font-size:14px; color:var(--muted); flex:0.5; text-align:right;">Tempo Gasto Estimado vs Real</span>
+      </div>
+
+      <div style="margin-top:8px">
+        <textarea id="taskDescription" placeholder="Descrição (opcional)"></textarea>
+      </div>
+
+      <div class="dod-section">
+          <label style="font-weight:700; color:#333; margin-bottom: 8px;">✅ Definição de Pronto (DoD):</label>
+          <label><input type="checkbox" id="dodTested"> Testado (Manual/Automático)</label>
+          <label><input type="checkbox" id="dodReviewed"> Revisado (Código/Pares)</label>
+          <label><input type="checkbox" id="dodDoc"> Documentação/Notas Atualizadas</label>
+      </div>
+
+      <div class="actions" style="margin-top:12px;text-align:right">
+        <button id="cancelModal" class="small-btn">Cancelar</button>
+        <button id="saveModal" class="add-btn">Salvar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
+<script>
+// App logic: CRUD + LocalStorage + Export/Import + Drag & Drop + UX interactions
+
+const STORAGE_KEY = "agile_board_v2"; // Mudança de V1 para V2 devido às novas propriedades
+const LAST_VISIT_KEY = "agile_board_last_visit";
+const SPRIN_DURATION_DAYS = 14;
+const WIP_LIMIT = 3; // NOVO: Limite de tarefas em In Progress
+
+const columns = {
+  "To Do": document.getElementById('col-todo'),
+  "In Progress": document.getElementById('col-progress'),
+  "Review": document.getElementById('col-review'),
+  "Done": document.getElementById('col-done')
+};
+const backlogList = document.getElementById('backlogList');
+
+// Initial state, updated to track Sprint Start Date for countdown
+let state = { 
+    tasks: [], 
+    backlog: [], 
+    sprintStartDate: new Date().toISOString().split('T')[0],
+};
+
+// Utility
+function uid(){ return 't-'+Math.random().toString(36).slice(2,9); }
+function saveState(){ localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); updateUI(); }
+function loadState(){ 
+    const raw = localStorage.getItem(STORAGE_KEY); 
+    if(raw){ 
+        try{ 
+            state = JSON.parse(raw);
+            if (!state.sprintStartDate || isNaN(new Date(state.sprintStartDate))) {
+                state.sprintStartDate = new Date().toISOString().split('T')[0];
+            }
+        }catch(e){
+            console.warn('parse error',e);
+            setInitialData();
+        } 
+    } else {
+        setInitialData(); 
+    }
+    updateUI(); 
+    updateSprintCountdown();
+    // Verifica se há um timer ativo
+    if(localStorage.getItem('pomodoroActive') === 'true') {
+        togglePomodoro(true); // CORRIGIDO: Era startPomodoro, que não existia.
+    }
+}
+function clearState(){ 
+    if(confirm('Limpar todas as tarefas e backlog? Isso não pode ser desfeito.')){ 
+        localStorage.removeItem(STORAGE_KEY);
+        localStorage.removeItem(LAST_VISIT_KEY);
+        localStorage.removeItem('pomodoroActive');
+        localStorage.removeItem('pomodoroEndTime');
+        location.reload(); 
+    } 
+}
+
+// === NEW: Default Initial Data for first time users ===
+function setInitialData() {
+    state = { 
+        tasks: [
+            { id: uid(), title: "Configurar ambiente de desenvolvimento", description: "Instalar Node.js, Git e IDE.", priority: "High", points: "5", owner: "João", column: "To Do", timeSpent: "1", dodTested: false, dodReviewed: false, dodDoc: false },
+            { id: uid(), title: "Criar protótipo da tela de login", description: "Design básico da interface de autenticação.", priority: "Medium", points: "3", owner: "Maria", column: "To Do", timeSpent: "0", dodTested: false, dodReviewed: false, dodDoc: false }
+        ],
+        backlog: [
+            { id: uid(), title: "Implementar pagamento via PIX", description: "Requer integração com gateway externo.", priority: "High", points: "13" },
+            { id: uid(), title: "Melhorias de SEO", description: "Otimizar meta tags e títulos.", priority: "Low", points: "8" }
+        ],
+        sprintStartDate: new Date().toISOString().split('T')[0],
+    };
+    saveState();
+}
+
+// Create card element
+function makeCard(task){
+  const card = document.createElement('div');
+  card.className = 'card';
+  card.draggable = true;
+  card.dataset.id = task.id;
+  
+  const priorityClass = task.priority==='High'?'p-high':task.priority==='Medium'?'p-med':'p-low';
+  
+  // NOVO: Adiciona ícones de DoD ao card
+  const dodIcons = [
+      task.dodTested ? '✅' : '☐',
+      task.dodReviewed ? '✅' : '☐',
+      task.dodDoc ? '✅' : '☐'
+  ].join('');
+
+  card.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <div style="font-weight:700" class="card-title">${escapeHtml(task.title)}</div>
+      <div class="actions">
+        <button class="icon-btn btn-edit" title="Editar">✏️</button>
+        <button class="icon-btn btn-delete" title="Excluir">🗑️</button>
+      </div>
+    </div>
+    <div class="meta">
+      <span class="priority ${priorityClass}">${task.priority}</span>
+      <span>${task.points && task.points > 0 ? task.points+' pts' : '—'}</span>
+      <span>⏱️ ${task.timeSpent && task.timeSpent > 0 ? task.timeSpent+'h' : '0h'}</span>
+      <span>👤 ${escapeHtml(task.owner||'—')}</span>
+    </div>
+    <div style="font-size:12px;margin-top:4px;color:var(--bg1)">DoD: ${dodIcons}</div>
+    <div style="font-size:13px;color:var(--muted)">${escapeHtml(task.description||'')}</div>
+  `;
+  
+  // events
+  card.querySelector('.btn-delete').addEventListener('click', (e)=>{ e.stopPropagation(); removeTask(task.id); });
+  card.querySelector('.btn-edit').addEventListener('click', (e)=>{ e.stopPropagation(); openModal(task); });
+  card.addEventListener('dblclick', ()=>{ openModal(task); });
+  // drag events
+  card.addEventListener('dragstart', (e)=>{ e.dataTransfer.setData('text/plain', task.id); e.dataTransfer.effectAllowed='move'; });
+  card.addEventListener('keydown', (e)=>{ if(e.key==='Enter') openModal(task); });
+  return card;
+}
+
+function escapeHtml(s){ if(!s) return ''; return s.replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;'); }
+
+// Add / Edit / Remove
+function addTask(task){ state.tasks.push(task); saveState(); }
+function updateTask(updated){ state.tasks = state.tasks.map(t=> t.id===updated.id? updated : t); saveState(); }
+function removeTask(id){ if(confirm('Remover essa tarefa?')) { state.tasks = state.tasks.filter(t=> t.id !== id); saveState(); } }
+function addBacklog(item){ state.backlog.push(item); saveState(); }
+function removeBacklog(id){ state.backlog = state.backlog.filter(b=>b.id!==id); saveState(); }
+
+// Sprint Countdown Logic
+function updateSprintCountdown() {
+    const today = new Date();
+    const startDate = new Date(state.sprintStartDate);
+    const diffTime = today.getTime() - startDate.getTime();
+    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24)); 
+    const daysRemaining = SPRIN_DURATION_DAYS - diffDays;
+    document.getElementById('sprint-days-remaining').textContent = Math.max(0, daysRemaining);
+}
+
+
+// UI rendering
+function updateUI(){
+  // clear columns
+  Object.values(columns).forEach(el=> el.innerHTML='');
+  backlogList.innerHTML = '';
+
+  let totalPoints = 0;
+  let completedPoints = 0;
+  let totalTimeSpent = 0;
+
+  // render tasks
+  state.tasks.forEach(task=>{
+    const col = columns[task.column] || columns["To Do"];
+    col.appendChild(makeCard(task));
+    
+    // Calculate metrics
+    const points = parseInt(task.points) || 0;
+    const timeSpent = parseFloat(task.timeSpent) || 0;
+    totalPoints += points;
+    totalTimeSpent += timeSpent;
+
+    if(task.column === 'Done'){
+        completedPoints += points;
+    }
+  });
+  
+  // backlog
+  state.backlog.forEach(item=>{
+    const li = document.createElement('div');
+    li.className = 'backlog-item';
+    li.innerHTML = `<div style="font-weight:700">${escapeHtml(item.title)}</div>
+      <div style="font-size:13px;color:var(--muted)">${escapeHtml(item.description||'')}</div>
+      <div style="margin-top:6px;display:flex;justify-content:flex-end;gap:8px">
+        <button class="small-btn" data-id="${item.id}" onclick="moveBacklogToBoard('${item.id}')">➤ Mover para To Do</button>
+        <button class="small-btn" data-id="${item.id}" onclick="deleteBacklog('${item.id}')">🗑️ Excluir</button>
+      </div>`;
+    backlogList.appendChild(li);
+  });
+
+  // NOVO: WIP LIMIT CHECK
+  const wipCount = state.tasks.filter(t => t.column === 'In Progress').length;
+  const wipColumn = document.querySelector('[data-column="In Progress"]').closest('.column');
+  document.getElementById('wipLimitDisplay').textContent = `(WIP: ${wipCount}/${WIP_LIMIT})`;
+  
+  if (wipCount > WIP_LIMIT) {
+      wipColumn.classList.add('wip-alert');
+  } else {
+      wipColumn.classList.remove('wip-alert');
+  }
+  
+  // update metrics
+  const totalTasks = state.tasks.length;
+  const progressPercent = totalPoints > 0 ? Math.round((completedPoints / totalPoints) * 100) : 0;
+  
+  document.getElementById('count-tasks').textContent = totalTasks;
+  document.getElementById('metric-progress').textContent = progressPercent + '%';
+  document.getElementById('metric-velocity').textContent = completedPoints;
+  document.getElementById('metric-time-spent').textContent = `${totalTimeSpent.toFixed(1)}h`;
+  
+  updateSprintCountdown();
+}
+
+// move backlog item to board
+function moveBacklogToBoard(id){
+  const b = state.backlog.find(x=>x.id===id);
+  if(!b) return;
+  const task = { id: uid(), title: b.title, description:b.description, priority:b.priority||'Medium', points:b.points||'3', owner:b.owner||'', column:'To Do', timeSpent: "0", dodTested: false, dodReviewed: false, dodDoc: false };
+  addTask(task);
+  removeBacklog(id);
+}
+
+// delete backlog
+function deleteBacklog(id){ if(confirm('Remover user story do backlog?')){ removeBacklog(id); } }
+
+// Modal handling
+const modalBackdrop = document.getElementById('modalBackdrop');
+const taskTitle = document.getElementById('taskTitle');
+const taskPriority = document.getElementById('taskPriority');
+const taskPoints = document.getElementById('taskPoints');
+const taskOwner = document.getElementById('taskOwner');
+const taskColumn = document.getElementById('taskColumn');
+const taskDescription = document.getElementById('taskDescription');
+const taskTimeSpent = document.getElementById('taskTimeSpent');
+// DoD inputs
+const dodTested = document.getElementById('dodTested');
+const dodReviewed = document.getElementById('dodReviewed');
+const dodDoc = document.getElementById('dodDoc');
+let editingTaskId = null;
+
+function openModal(task = null) {
+  if (modalBackdrop.classList.contains('visible')) return;
+
+  modalBackdrop.classList.remove('hidden');
+  setTimeout(() => modalBackdrop.classList.add('visible'), 10);
+  modalBackdrop.setAttribute('aria-hidden', 'false');
+
+  if (task) {
+    document.getElementById('modalTitle').textContent = 'Editar Tarefa';
+    taskTitle.value = task.title;
+    taskPriority.value = task.priority;
+    taskPoints.value = task.points || '';
+    taskOwner.value = task.owner || '';
+    taskColumn.value = task.column || 'To Do';
+    taskDescription.value = task.description || '';
+    taskTimeSpent.value = task.timeSpent || '0';
+    dodTested.checked = task.dodTested || false;
+    dodReviewed.checked = task.dodReviewed || false;
+    dodDoc.checked = task.dodDoc || false;
+    editingTaskId = task.id;
+  } else {
+    document.getElementById('modalTitle').textContent = 'Nova Tarefa';
+    taskTitle.value = '';
+    taskPriority.value = 'Medium';
+    taskPoints.value = '3';
+    taskOwner.value = '';
+    taskColumn.value = 'To Do';
+    taskDescription.value = '';
+    taskTimeSpent.value = '0';
+    dodTested.checked = false;
+    dodReviewed.checked = false;
+    dodDoc.checked = false;
+    editingTaskId = null;
+  }
+  taskTitle.focus();
+}
+
+function closeModal() {
+  modalBackdrop.classList.remove('visible');
+  setTimeout(() => {
+    modalBackdrop.classList.add('hidden');
+    modalBackdrop.setAttribute('aria-hidden', 'true');
+    editingTaskId = null;
+  }, 250);
+}
+// REMOVIDO: O bloco de código anônimo que causava o Syntax Error foi removido daqui.
+
+// save modal
+document.getElementById('saveModal').addEventListener('click', ()=>{
+  const title = taskTitle.value.trim();
+  if(!title){ alert('Título é obrigatório'); taskTitle.focus(); return; }
+  
+  const pointsValue = taskPoints.value ? String(taskPoints.value) : '0';
+  
+  const obj = {
+    id: editingTaskId || uid(),
+    title,
+    priority: taskPriority.value,
+    points: pointsValue,
+    owner: taskOwner.value,
+    column: taskColumn.value,
+    description: taskDescription.value,
+    timeSpent: String(taskTimeSpent.value) || '0',
+    dodTested: dodTested.checked,
+    dodReviewed: dodReviewed.checked,
+    dodDoc: dodDoc.checked,
+  };
+
+  if (obj.column === 'Done' && (!obj.dodTested || !obj.dodReviewed || !obj.dodDoc)) {
+      if (!confirm('A tarefa está sendo movida para DONE, mas o Checklist DoD não está completo. Deseja continuar?')) {
+          return;
+      }
+  }
+
+  if(editingTaskId){
+    updateTask(obj);
+  } else {
+    addTask(obj);
+  }
+  closeModal();
+});
+
+// cancel modal
+document.getElementById('cancelModal').addEventListener('click', closeModal);
+modalBackdrop.addEventListener('click', (e)=>{ if(e.target===modalBackdrop) closeModal(); });
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && modalBackdrop.classList.contains('visible')) { closeModal(); }
+});
+
+
+// add tarefa 
+document.getElementById('addTaskBtn').addEventListener('click', ()=> openModal());
+// add backlog button
+document.getElementById('addBacklogBtn').addEventListener('click', ()=>{
+  const title = prompt('Título da user story (Ex: Como usuário, quero...):');
+  if(!title) return;
+  const item = { id: uid(), title, description:'', priority:'Medium', points:'8' }; 
+  addBacklog(item);
+});
+
+// NOVO: Listener para o botão de Importar
+document.getElementById('importBtn').addEventListener('click', () => {
+    document.getElementById('importFile').click();
+});
+
+
+// tabs
+document.getElementById('tab-board').addEventListener('click', ()=> showSection('board'));
+document.getElementById('tab-backlog').addEventListener('click', ()=> showSection('backlog'));
+document.getElementById('tab-metrics').addEventListener('click', ()=> showSection('metrics'));
+function showSection(name){
+  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+  document.getElementById('tab-'+name).classList.add('active');
+  document.getElementById('boardSection').classList.toggle('hidden', name!=='board');
+  document.getElementById('backlogSection').classList.toggle('hidden', name!=='backlog');
+  document.getElementById('metricsSection').classList.toggle('hidden', name!=='metrics');
+}
+
+// drag & drop between columns
+Object.values(columns).forEach(list=>{
+  list.addEventListener('dragover', e=>{ e.preventDefault(); list.style.background='rgba(0,0,0,0.03)'; });
+  list.addEventListener('dragleave', e=>{ list.style.background=''; });
+  list.addEventListener('drop', e=>{
+    e.preventDefault(); list.style.background='';
+    const id = e.dataTransfer.getData('text/plain');
+    if(!id) return;
+    const task = state.tasks.find(t=>t.id===id);
+    if(!task) return;
+    const targetCol = list.parentElement.dataset.column || 'To Do';
+    task.column = targetCol;
+    updateTask(task);
+  });
+});
+
+// NOVO: Replanejar Sprint (Mover incompletos para Backlog)
+document.getElementById('replanSprintBtn').addEventListener('click', replanSprint);
+function replanSprint() {
+    if (!confirm('Tem certeza que deseja REPLANEJAR A SPRINT? Isso moverá todas as tarefas To Do, In Progress e Review de volta para o Product Backlog e reiniciará o contador de dias.')) {
+        return;
+    }
+
+    const incompleteStatuses = ['To Do', 'In Progress', 'Review'];
+    const tasksToMove = state.tasks.filter(t => incompleteStatuses.includes(t.column));
+
+    tasksToMove.forEach(task => {
+        // Cria um item de backlog a partir da tarefa
+        state.backlog.push({
+            id: uid(), 
+            title: task.title,
+            description: task.description,
+            priority: task.priority,
+            points: task.points
+        });
+    });
+
+    // Remove as tarefas incompletas do array principal
+    state.tasks = state.tasks.filter(t => t.column === 'Done');
+
+    // Reinicia o contador de dias da Sprint
+    state.sprintStartDate = new Date().toISOString().split('T')[0];
+
+    saveState();
+    alert(`Sprint Replanejada! ${tasksToMove.length} tarefas movidas para o Backlog. O contador de dias foi reiniciado.`);
+}
+
+
+// NOVO: Lógica do Pomodoro Timer
+let pomodoroTimer;
+const POMODORO_DURATION = 25 * 60; // 25 minutos em segundos
+
+function togglePomodoro(isReload = false) {
+    const btn = document.getElementById('pomodoroBtn');
+    let timeLeft = parseInt(localStorage.getItem('pomodoroTimeLeft')) || POMODORO_DURATION;
+    const isActive = localStorage.getItem('pomodoroActive') === 'true';
+
+    if (isActive && !isReload) {
+        // Pausar
+        clearInterval(pomodoroTimer);
+        localStorage.setItem('pomodoroActive', 'false');
+        localStorage.setItem('pomodoroTimeLeft', timeLeft);
+        btn.classList.remove('active');
+        btn.textContent = `🍅 Pomodoro (PAUSADO: ${formatTime(timeLeft)})`;
+        return;
+    }
+    
+    if (!isActive && isReload && timeLeft <= 0) {
+        // Caso especial de reload onde o timer acabou
+        btn.textContent = `✅ Pomodoro (Tempo Esgotado)`;
+        btn.classList.add('active');
+        return;
+    }
+
+    if (!isActive || isReload) {
+        // Iniciar ou Retomar
+        if(!isReload) {
+            timeLeft = POMODORO_DURATION; // Reinicia se não for um reload
+            localStorage.setItem('pomodoroEndTime', Date.now() + timeLeft * 1000);
+        } else {
+            const endTime = parseInt(localStorage.getItem('pomodoroEndTime'));
+            timeLeft = Math.max(0, Math.floor((endTime - Date.now()) / 1000));
+        }
+
+
+        localStorage.setItem('pomodoroActive', 'true');
+        btn.classList.add('active');
+        
+        pomodoroTimer = setInterval(() => {
+            timeLeft--;
+            localStorage.setItem('pomodoroTimeLeft', timeLeft);
+            btn.textContent = `⏳ ${formatTime(timeLeft)}`;
+
+            if (timeLeft <= 0) {
+                clearInterval(pomodoroTimer);
+                localStorage.removeItem('pomodoroActive');
+                localStorage.removeItem('pomodoroTimeLeft');
+                localStorage.removeItem('pomodoroEndTime');
+                btn.classList.remove('active');
+                btn.textContent = `✅ Pomodoro (Tempo Esgotado!)`;
+                alert('Foco concluído! Hora do descanso (5 minutos)');
+                setTimeout(() => { btn.textContent = '🍅 Pomodoro (25m)'; }, 3000);
+            }
+        }, 1000);
+    }
+}
+
+function formatTime(seconds) {
+    const min = Math.floor(seconds / 60);
+    const sec = seconds % 60;
+    return `${min.toString().padStart(2, '0')}:${sec.toString().padStart(2, '0')}`;
+}
+
+
+// export to excel (adaptado para novos campos)
+document.getElementById('exportBtn').addEventListener('click', exportToExcel);
+function exportToExcel(){
+  const rows = [];
+  state.tasks.forEach(t=>{
+    rows.push({
+      Tipo: 'Task',
+      Status: t.column,
+      Title: t.title,
+      Priority: t.priority,
+      Points: t.points,
+      Owner: t.owner,
+      Description: t.description,
+      'Tempo Gasto (h)': t.timeSpent || '',
+      'DoD: Testado': t.dodTested ? 'Sim' : 'Não',
+      'DoD: Revisado': t.dodReviewed ? 'Sim' : 'Não',
+      'DoD: Documentado': t.dodDoc ? 'Sim' : 'Não',
+    });
+  });
+  state.backlog.forEach(b=>{
+    rows.push({
+      Tipo: 'Backlog',
+      Status: 'Backlog',
+      Title: b.title,
+      Priority: b.priority,
+      Points: b.points,
+      Owner: b.owner||'',
+      Description: b.description||'',
+      'Tempo Gasto (h)': '', 'DoD: Testado': '', 'DoD: Revisado': '', 'DoD: Documentado': '',
+    });
+  });
+  const ws = XLSX.utils.json_to_sheet(rows);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'AgileBoard');
+  XLSX.writeFile(wb, 'AgileBoard_export.xlsx');
+}
+
+// import (adaptado para novos campos)
+//document.getElementById('importFile').click(){;
+document.getElementById('importFile').addEventListener('change', async (e)=>{
+  const f = e.target.files[0];
+  if(!f) return;
+  try {
+    const data = await f.arrayBuffer();
+    const wb = XLSX.read(data, {type:'array'});
+    const first = wb.Sheets[wb.SheetNames[0]];
+    const json = XLSX.utils.sheet_to_json(first, {defval:''});
+    
+    state.tasks = state.backlog = []; 
+
+    json.forEach(row=>{
+      const tipo = String(row['Tipo']||'').trim();
+      const col = String(row['Status']||row['Coluna']||'To Do').trim();
+      const title = String(row['Title']||row['Título']||'').trim();
+      if(!title) return;
+      
+      const points = String(row['Points'] || row['Pontos'] || '').replace(/\D/g, ''); 
+      const timeSpent = String(row['Tempo Gasto (h)'] || '').replace(/[^0-9.]/g, '');
+
+      const newObj = {
+          id: uid(),
+          title: title,
+          description: String(row['Description'] || row['Descrição'] || ''),
+          priority: String(row['Priority'] || 'Medium'),
+          points: points,
+          owner: String(row['Owner'] || row['Responsável'] || ''),
+          column: col,
+          timeSpent: timeSpent || '0',
+          dodTested: (String(row['DoD: Testado']||'').toLowerCase() === 'sim'),
+          dodReviewed: (String(row['DoD: Revisado']||'').toLowerCase() === 'sim'),
+          dodDoc: (String(row['DoD: Documentado']||'').toLowerCase() === 'sim'),
+      };
+
+      if(tipo.toLowerCase()==='backlog' || col.toLowerCase()==='backlog'){
+        state.backlog.push(newObj);
+      } else {
+        state.tasks.push(newObj);
+      }
+    });
+    
+    saveState();
+    e.target.value = '';
+    alert('Importação concluída. Dados foram adicionados ao board/backlog.');
+  } catch (error) {
+    alert('Erro ao importar arquivo. Certifique-se de que é um arquivo Excel/CSV válido e que as colunas essenciais estão presentes. Detalhes: ' + error.message);
+  }
+});
+
+// clear storage
+document.getElementById('clearBtn').addEventListener('click', clearState);
+
+// load on start
+loadState();
+// Garante que o modal esteja fechado ao iniciar
+modalBackdrop.classList.remove('visible');
+modalBackdrop.classList.add('hidden');
+modalBackdrop.setAttribute('aria-hidden', 'true');
+
+// keyboard: N to add new
+document.addEventListener('keydown', (e)=>{ 
+    if(modalBackdrop.getAttribute('aria-hidden') === 'false' || 
+       document.activeElement.tagName === 'INPUT' || 
+       document.activeElement.tagName === 'TEXTAREA') {
+        return;
+    } 
+    if(e.key.toLowerCase()==='n'){ 
+        openModal(); 
+    } 
+});
+
+
+// expose some functions to window for backlog buttons
+window.moveBacklogToBoard = moveBacklogToBoard;
+window.deleteBacklog = deleteBacklog;
+window.togglePomodoro = togglePomodoro;
+
+</script>
+</body>
+</html>
